@@ -341,8 +341,8 @@ class Test(unittest.TestCase):
                          'fail_class', 'params', "timeout"]
         state = dict([(key, self.__dict__.get(key)) for key in preserve_attr])
         state['class_name'] = self.__class__.__name__
-        state['job_logdir'] = self.job.logdir
-        state['job_unique_id'] = self.job.unique_id
+        state['job_logdir'] = getattr(self.job, 'logdir', None)
+        state['job_unique_id'] = getattr(self.job, 'unique_id', None)
         return state
 
     def _register_log_file_handler(self, logger, formatter, filename,

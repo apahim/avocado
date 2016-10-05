@@ -95,6 +95,8 @@ class Result(object):
         :param job: an instance of :class:`avocado.core.job.Job`.
         """
         self.job_unique_id = getattr(job, "unique_id", None)
+        self.remote_hostname = getattr(job.args, "remote_hostname", None)
+        self.remote_username = getattr(job.args, "remote_username", None)
         self.logfile = getattr(job, "logfile", None)
         self.args = getattr(job, "args", None)
         self.tests_total = getattr(self.args, 'test_result_total', 1)
@@ -243,8 +245,9 @@ class HumanResult(Result):
         duration = (" (%.2f s)" % state.get('time_elapsed', -1)
                     if status != "SKIP"
                     else "")
+        remote = (" -> %s@%s" % (self.remote_username, self.remote_hostname) if self.remote_hostname is not None else "")
         self.log.debug(output.TERM_SUPPORT.MOVE_BACK + mapping[status] +
-                       status + output.TERM_SUPPORT.ENDC + duration)
+                       status + output.TERM_SUPPORT.ENDC + duration + remote)
 
     def notify_progress(self, progress=False):
         if progress:
