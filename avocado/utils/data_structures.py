@@ -21,9 +21,9 @@ This module contains handy classes that can be used inside
 avocado core code or plugins.
 """
 
-
-import sys
 import math
+import pickle
+import sys
 from itertools import izip
 
 
@@ -177,7 +177,7 @@ class CallbackRegister(object):
         self._items = []
         self._log = log
 
-    def register(self, func, args, kwargs, once=False):
+    def register(self, func, args, kwargs, once=False, modulePath=None):
         """
         Register function/args to be called on self.destroy()
         :param func: Pickable function
@@ -185,18 +185,18 @@ class CallbackRegister(object):
         :param kwargs: Pickable keyword arguments
         :param once: Add unique (func,args,kwargs) combination only once
         """
-        item = (func, args, kwargs)
+        item = (func, args, kwargs, modulePath)
         if not once or item not in self._items:
             self._items.append(item)
 
-    def unregister(self, func, args, kwargs):
+    def unregister(self, func, args, kwargs, modulePath=None):
         """
         Unregister (func,args,kwargs) combination
         :param func: Pickable function
         :param args: Pickable positional arguments
         :param kwargs: Pickable keyword arguments
         """
-        item = (func, args, kwargs)
+        item = (func, args, kwargs, modulePath)
         if item in self._items:
             self._items.remove(item)
 
@@ -207,7 +207,13 @@ class CallbackRegister(object):
         while self._items:
             item = self._items.pop()
             try:
-                func, args, kwargs = item
+                func, args, kwargs, modulePath = item
+                if modulePath is not None:
+                    _syspath = sys.path[:]
+                    sys.path.insert(0, modulePath)
+                    func = pickle.loads(func)
+                    sys.path = _syspath
+
                 func(*args, **kwargs)
             except:     # Ignore all exceptions pylint: disable=W0702
                 self._log.error("%s failed to destroy %s:\n%s",

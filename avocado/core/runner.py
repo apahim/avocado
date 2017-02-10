@@ -19,7 +19,6 @@ Test runner module.
 
 import logging
 import multiprocessing
-from multiprocessing import queues
 import os
 import signal
 import sys
@@ -28,6 +27,7 @@ import time
 from . import test
 from . import exceptions
 from . import output
+from . import queues
 from . import status
 from .loader import loader
 from .status import mapping
@@ -169,7 +169,8 @@ class TestStatus(object):
                 self.job.funcatexit.register(msg["func_at_exit"],
                                              msg.get("args", tuple()),
                                              msg.get("kwargs", {}),
-                                             msg.get("once", False))
+                                             msg.get("once", False),
+                                             msg.get("modulePath", None))
             elif not msg.get("running", True):
                 self.status = msg
                 self.interrupt = True
@@ -556,6 +557,8 @@ class TestRunner(object):
             self.job.sysinfo.end_job_hook()
         self.result.end_tests()
         self.job._result_events_dispatcher.map_method('post_tests', self.job)
-        self.job.funcatexit.run()
+        proc_funcatexit = multiprocessing.Process(target=self.job.funcatexit.run)
+        proc_funcatexit.start()
+        proc_funcatexit.join()
         signal.signal(signal.SIGTSTP, signal.SIG_IGN)
         return summary
