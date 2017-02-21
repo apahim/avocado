@@ -268,6 +268,7 @@ class TestRunner(object):
         self.job = job
         self.result = result
         self.sigstopped = False
+        self.abort_reason = None
 
     def _run_test(self, test_factory, queue):
         """
@@ -290,12 +291,6 @@ class TestRunner(object):
                               logging.getLogger('paramiko')]
         sys.stdout = output.LoggingFile(logger=logger_list_stdout)
         sys.stderr = output.LoggingFile(logger=logger_list_stderr)
-
-        def sigterm_handler(signum, frame):     # pylint: disable=W0613
-            """ Produce traceback on SIGTERM """
-            raise SystemExit("Test interrupted by SIGTERM")
-
-        signal.signal(signal.SIGTERM, sigterm_handler)
 
         # Replace STDIN (0) with the /dev/null's fd
         os.dup2(sys.stdin.fileno(), 0)
@@ -357,6 +352,13 @@ class TestRunner(object):
                     process.kill_process_tree(proc.pid, signal.SIGSTOP, False)
                     self.sigstopped = True
 
+        def sigterm_handler(signum, frame):     # pylint: disable=W0613
+            self.abort_reason = "Terminated by SIGTERM"
+            self.job.log.debug("\nSIGTERM received. Killing test "
+                               "subprocess %s\n", proc.pid)
+            os.kill(proc.pid, signal.SIGKILL)
+
+        signal.signal(signal.SIGTERM, sigterm_handler)
         signal.signal(signal.SIGTSTP, sigtstp_handler)
 
         proc = multiprocessing.Process(target=self._run_test,
@@ -387,13 +389,12 @@ class TestRunner(object):
         stage_2_msg_displayed = False
         first = 0.01
         step = 0.01
-        abort_reason = None
         result_dispatcher = self.job._result_events_dispatcher
 
         while True:
             try:
                 if time.time() >= deadline:
-                    abort_reason = "Timeout reached"
+                    self.abort_reason = "Timeout reached"
                     try:
                         os.kill(proc.pid, signal.SIGTERM)
                     except OSError:
@@ -418,7 +419,7 @@ class TestRunner(object):
                 ctrl_c_count += 1
                 if ctrl_c_count == 1:
                     if not stage_1_msg_displayed:
-                        abort_reason = "Interrupted by ctrl+c"
+                        self.abort_reason = "Interrupted by ctrl+c"
                         self.job.log.debug("\nInterrupt requested. Waiting %d "
                                            "seconds for test to finish "
                                            "(ignoring new Ctrl+C until then)",
@@ -427,7 +428,7 @@ class TestRunner(object):
                     ignore_time_started = time.time()
                 if (ctrl_c_count > 1) and (time_elapsed > ignore_window):
                     if not stage_2_msg_displayed:
-                        abort_reason = "Interrupted by ctrl+c (multiple-times)"
+                        self.abort_reason = "Interrupted by ctrl+c (multiple-times)"
                         self.job.log.debug("Killing test subprocess %s",
                                            proc.pid)
                         stage_2_msg_displayed = True
@@ -438,9 +439,9 @@ class TestRunner(object):
                                         step)
 
         # Try to log the timeout reason to test's results and update test_state
-        if abort_reason:
+        if self.abort_reason:
             test_state = add_runner_failure(test_state, "INTERRUPTED",
-                                            abort_reason)
+                                            self.abort_reason)
 
         # don't process other tests from the list
         if ctrl_c_count > 0:
