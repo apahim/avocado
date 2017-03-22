@@ -559,53 +559,59 @@ class Test(unittest.TestCase):
         cleanup_exception = None
         stdout_check_exception = None
         stderr_check_exception = None
+        skip = getattr(testMethod, '__skip_test_decorator__', False)
         try:
-            self.setUp()
+            if not skip:
+                self.setUp()
         except (exceptions.TestSetupSkip,
-                exceptions.TestDecoratorSkip,
                 exceptions.TestTimeoutSkip,
                 exceptions.TestSkipError) as details:
+            skip = True
             stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
             raise exceptions.TestSkipError(details)
-        except exceptions.TestCancel as details:
-            stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
-            skip_illegal_msg = ('Calling cancel() in setUp() '
-                                'is not allowed in avocado, you '
-                                'must fix your test. Original cancel exception: '
-                                '%s' % details)
-            raise exceptions.TestError(skip_illegal_msg)
-        except:  # Old-style exceptions are not inherited from Exception()
-            stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
-            details = sys.exc_info()[1]
-            raise exceptions.TestSetupFail(details)
-        try:
-            testMethod()
-        except exceptions.TestSetupSkip as details:
-            stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
-            skip_illegal_msg = ('Calling skip() in places other than '
-                                'setUp() is not allowed in avocado, you '
-                                'must fix your test. Original skip exception: '
-                                '%s' % details)
-            raise exceptions.TestError(skip_illegal_msg)
         except exceptions.TestDecoratorSkip as details:
             stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
-            raise exceptions.TestSkipError(details)
-        except exceptions.TestCancel as details:
+            skip_illegal_msg = ('Using skip decorators in places other '
+                                'the test method is not allowed in '
+                                'avocado, you must fix your '
+                                'test. Original skip exception: %s' %
+                                details)
+            raise exceptions.TestError(skip_illegal_msg)
+        except exceptions.TestCancel:
             stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
             raise
         except:  # Old-style exceptions are not inherited from Exception()
             stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
             details = sys.exc_info()[1]
-            if not isinstance(details, Exception):  # Avoid passing nasty exc
-                details = exceptions.TestError("%r: %s" % (details, details))
-            test_exception = details
-            self.log.debug("Local variables:")
-            local_vars = inspect.trace()[1][0].f_locals
-            for key, value in local_vars.iteritems():
-                self.log.debug(' -> %s %s: %s', key, type(value), value)
+            raise exceptions.TestSetupFail(details)
+        else:
+            try:
+                testMethod()
+            except exceptions.TestSetupSkip as details:
+                stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
+                skip_illegal_msg = ('Calling skip() in places other than '
+                                    'setUp() is not allowed in avocado, you '
+                                    'must fix your test. Original skip exception: '
+                                    '%s' % details)
+                raise exceptions.TestError(skip_illegal_msg)
+            except exceptions.TestDecoratorSkip as details:
+                skip = True
+                stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
+                raise exceptions.TestSkipError(details)
+            except:  # Old-style exceptions are not inherited from Exception()
+                stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
+                details = sys.exc_info()[1]
+                if not isinstance(details, Exception):  # Avoid passing nasty exc
+                    details = exceptions.TestError("%r: %s" % (details, details))
+                test_exception = details
+                self.log.debug("Local variables:")
+                local_vars = inspect.trace()[1][0].f_locals
+                for key, value in local_vars.iteritems():
+                    self.log.debug(' -> %s %s: %s', key, type(value), value)
         finally:
             try:
-                self.tearDown()
+                if not skip:
+                    self.tearDown()
             except exceptions.TestSetupSkip as details:
                 stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
                 skip_illegal_msg = ('Calling skip() in places other than '
@@ -615,11 +621,15 @@ class Test(unittest.TestCase):
                 raise exceptions.TestError(skip_illegal_msg)
             except exceptions.TestDecoratorSkip as details:
                 stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
-                skip_illegal_msg = ('Using skip decorators after the test '
-                                    'will have no effect, you must fix your '
+                skip_illegal_msg = ('Using skip decorators in places other '
+                                    'the test method is not allowed in '
+                                    'avocado, you must fix your '
                                     'test. Original skip exception: %s' %
                                     details)
                 raise exceptions.TestError(skip_illegal_msg)
+            except exceptions.TestCancel:
+                stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
+                raise
             except:  # avoid old-style exception failures
                 stacktrace.log_exc_info(sys.exc_info(), logger='avocado.test')
                 details = sys.exc_info()[1]
