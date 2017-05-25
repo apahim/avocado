@@ -422,6 +422,7 @@ class LoaderTest(unittest.TestCase):
                                                    DEFAULT_NON_EXEC_MODE)
         with avocado_test_tags as test:
             test_suite = self.loader.discover(test.path, loader.ALL)
+            print test_suite
             self.assertEqual(len(test_suite), 5)
             self.assertEqual(test_suite[0][0], 'SafeTest')
             self.assertEqual(test_suite[0][1]['methodName'], 'test_safe')
@@ -481,7 +482,7 @@ class LoaderTest(unittest.TestCase):
         avocado_keep_methods_order.save()
         expected_order = ['test2', 'testA', 'test1', 'testZZZ', 'test']
         tests = self.loader._find_avocado_tests(avocado_keep_methods_order.path)
-        methods = [method[0] for method in tests['MyClass']]
+        methods = [method[0] for method in tests['MyClass']['tests']]
         self.assertEqual(expected_order, methods)
         avocado_keep_methods_order.remove()
 
