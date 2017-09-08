@@ -18,6 +18,7 @@ Job module - describes a sequence of automated test operations.
 """
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -27,6 +28,7 @@ import tempfile
 import time
 import traceback
 
+from . import combinatorial
 from . import version
 from . import data_dir
 from . import dispatcher
@@ -432,6 +434,11 @@ class Job(object):
             except (IOError, ValueError) as details:
                 raise exceptions.OptionValidationError("Unable to parse "
                                                        "variant: %s" % details)
+
+        combined_elements = getattr(self.args, "combinatorial", None) 
+        if combined_elements is not None:
+            nwise = combinatorial.Nwise(variant, combined_elements)
+            variant = nwise.outcome()
 
         self._make_test_runner()
         self._start_sysinfo()

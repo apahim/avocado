@@ -167,6 +167,7 @@ if __name__ == '__main__':
                   'replay = avocado.plugins.replay:Replay',
                   'tap = avocado.plugins.tap:TAP',
                   'zip_archive = avocado.plugins.archive:ArchiveCLI',
+                  'combinatorial = avocado.plugins.combinatorial:CombinatorialCLI',
                   ],
               'avocado.plugins.cli.cmd': [
                   'config = avocado.plugins.config:Config',
